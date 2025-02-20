@@ -5,6 +5,10 @@ from typing import List
 
 app = FastAPI()
 
+@app.get("/")
+def read_root():
+    return {"Hello": "World"}
+
 # Create the database tables
 models.Base.metadata.create_all(bind=database.engine)
 
