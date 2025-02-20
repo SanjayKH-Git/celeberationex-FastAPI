@@ -1,9 +1,10 @@
 from pydantic import BaseModel
-from typing import Optional, List
-from datetime import datetime
+from typing import Optional, Dict, Any
 
 class VendorCategoryBase(BaseModel):
     name: str
+    details: Optional[Dict[str, Any]] = None  
+    image_url: Optional[str] = None
 
 class VendorCategoryCreate(VendorCategoryBase):
     pass

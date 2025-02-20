@@ -1,4 +1,8 @@
 insert_vendor_categories.sql
-__pycache__
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
 .venv
 
