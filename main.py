@@ -1,13 +1,18 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 import models, schemas, database
 from typing import List
+import logging
 
 app = FastAPI()
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 @app.get("/")
 def read_root():
-    return {"Hello": "World"}
+    return {"location": "celeberationex root"}
 
 # Create the database tables
 models.Base.metadata.create_all(bind=database.engine)
@@ -20,33 +25,69 @@ def get_db():
     finally:
         db.close()
 
-@app.post("/vendors/", response_model=schemas.Vendor)
-def create_vendor(vendor: schemas.VendorCreate, db: Session = Depends(get_db)):
-    db_vendor = models.Vendor(**vendor.dict())
-    db.add(db_vendor)
-    db.commit()
-    db.refresh(db_vendor)
-    return db_vendor
+@app.post("/vendor_categories/", response_model=schemas.VendorCategory)
+def create_or_update_vendor_category(vendor_category: schemas.VendorCategoryCreate, db: Session = Depends(get_db)):
+    try:
+        db_vendor_category = db.query(models.VendorCategory).filter(models.VendorCategory.name == vendor_category.name).first()
+        if db_vendor_category:
+            for key, value in vendor_category.dict().items():
+                setattr(db_vendor_category, key, value)
+            db.commit()
+            db.refresh(db_vendor_category)
+        else:
+            db_vendor_category = models.VendorCategory(**vendor_category.dict())
+            db.add(db_vendor_category)
+            db.commit()
+            db.refresh(db_vendor_category)
+        return db_vendor_category
+    except Exception as e:
+        logger.error(f"Error creating or updating vendor category: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal Server Error")
 
-@app.get("/vendors/{vendor_id}", response_model=schemas.Vendor)
-def read_vendor(vendor_id: int, db: Session = Depends(get_db)):
-    db_vendor = db.query(models.Vendor).filter(models.Vendor.id == vendor_id).first()
-    if db_vendor is None:
-        raise HTTPException(status_code=404, detail="Vendor not found")
-    return db_vendor
+@app.get("/vendor_categories/{name}", response_model=schemas.VendorCategory)
+def read_vendor_category(name: str, db: Session = Depends(get_db)):
+    try:
+        db_vendor_category = db.query(models.VendorCategory).filter(models.VendorCategory.name == name).first()
+        if db_vendor_category is None:
+            raise HTTPException(status_code=404, detail="Vendor category not found")
+        return db_vendor_category
+    except Exception as e:
+        logger.error(f"Error reading vendor category: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal Server Error")
 
-@app.post("/vendors/{vendor_id}/services/", response_model=schemas.Service)
-def create_service(vendor_id: int, service: schemas.ServiceCreate, db: Session = Depends(get_db)):
-    db_vendor = db.query(models.Vendor).filter(models.Vendor.id == vendor_id).first()
-    if db_vendor is None:
-        raise HTTPException(status_code=404, detail="Vendor not found")
-    db_service = models.Service(**service.dict(), vendor_id=vendor_id)
-    db.add(db_service)
-    db.commit()
-    db.refresh(db_service)
-    return db_service
+@app.get("/vendor_categories_config", response_model=List[str])
+def get_vendor_categories_config(db: Session = Depends(get_db)):
+    try:
+        categories = db.query(models.VendorCategory).all()
+        return [category.name for category in categories]
+    except Exception as e:
+        logger.error(f"Error getting vendor categories config: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal Server Error")
 
-@app.get("/vendors/{vendor_id}/services/", response_model=List[schemas.Service])
-def read_services(vendor_id: int, db: Session = Depends(get_db)):
-    db_services = db.query(models.Service).filter(models.Service.vendor_id == vendor_id).all()
-    return db_services
+@app.post("/celeberation_list/", response_model=List[str])
+def create_celeberation(celeberations: List[schemas.CeleberationListCreate], db: Session = Depends(get_db)):
+    try:
+        # Delete all existing records
+        db.query(models.CeleberationList).delete()
+
+        # Insert new records
+        db_celeberations = [models.CeleberationList(**celeberation.dict()) for celeberation in celeberations]
+        db.add_all(db_celeberations)
+        db.commit()
+
+        # Refresh all new records
+        for db_celeberation in db_celeberations:
+            db.refresh(db_celeberation)
+
+        return [celeberation.celeberation_name for celeberation in db_celeberations]
+    except Exception as e:
+        logger.error(f"Error creating celebration list: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal Server Error")
+
+@app.get("/celeberation_list/", response_model=List[str])
+def read_celeberation_list(db: Session = Depends(get_db)):
+    try:
+        return [celeberation.celeberation_name for celeberation in db.query(models.CeleberationList).all()]
+    except Exception as e:
+        logger.error(f"Error reading celebration list: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal Server Error")

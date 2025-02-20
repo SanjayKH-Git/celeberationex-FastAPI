@@ -1,7 +1,5 @@
 fastapi
 uvicorn
-# Add other dependencies here
 psycopg2-binary
 sqlalchemy
 pydantic
-debugpy
